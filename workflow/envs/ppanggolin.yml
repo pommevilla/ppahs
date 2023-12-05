@@ -1,0 +1,7 @@
+name: ppanggolin
+channels:
+  - bioconda
+dependencies:
+  - ppanggolin
+
+

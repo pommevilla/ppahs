@@ -1,0 +1,16 @@
+name: drep
+channels:
+  - bioconda
+dependencies:
+  - mash
+  - mummer
+  - fastani
+  - prodigal
+  - hmmer
+  - pplacer
+  - pip:
+    - drep
+    - checkm-genome
+
+
+

@@ -1,0 +1,14 @@
+name: r-pesi
+channels:
+  - conda-forge
+dependencies:
+  - r-base>=4.3
+  - r-tidyverse
+  - r-igraph
+  - r-remotes
+  - r-ggtext
+  - r-patchwork
+  - r-ggthemes
+  - r-sf
+
+

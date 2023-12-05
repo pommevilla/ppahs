@@ -1,0 +1,5 @@
+name: interproscan
+channels:
+  - bioconda
+dependencies:
+  - interproscan
