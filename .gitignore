@@ -52,3 +52,9 @@ data/genomes
 
 .snakemake/
 logs/
+outputs/
+dbs
+dRep_outputs*
+resources
+ppanggolin_outputs
+panaroo_outputs
