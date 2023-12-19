@@ -1,0 +1,186 @@
+configfile: "workflow/config.yml"
+include: "rules/common.smk"
+
+rule all:
+    input:
+        # Prokka outputs
+        expand(
+            "outputs/prokka_outputs/{genome_name}/prokka/{genome_name}.tsv",
+            genome_name=INPUT_FILES
+        ),
+
+        # Ppanggolin outputs
+        expand(
+            "outputs/ppanggolin_outputs/{version}derepped/pangenome.h5",
+            version=VERSIONS
+        ),
+
+        # Ppanggolin accessory genome alignment
+        expand(
+            "outputs/ppanggolin_outputs/{version}derepped/{partition}_genome_alignment.aln",
+            version=VERSIONS,
+            # partition=["persistent", "shell", "cloud", "core", "softcore", "accessory"]
+            partition=PARTITIONS
+        ),
+
+        # Panaroo outputs
+        expand(
+            "outputs/panaroo_outputs/{version}derepped_{core_threshold}/core_gene_alignment.aln",
+            version=VERSIONS,
+            # core_threshold=CORE_GENOME_THRESHOLDS
+            core_threshold=config["panaroo"]["core_thresholds"]
+        ),
+
+        # RAxML trees
+        # Panaroo trees
+        expand(
+            "outputs/raxml_outputs/{core_threshold}/RAxML_parsimonyTree.{core_threshold}",
+            core_threshold=CORE_GENOME_THRESHOLDS
+        ),
+        expand(
+            "outputs/raxml_outputs/ppanggolin_trees/{version}derepped/{partition}/RAxML_parsimonyTree.{partition}",
+            version=VERSIONS,
+            partition=PARTITIONS
+        )
+
+
+rule prokka:
+    input:
+        lambda wildcards: f"{INPUT_DIRECTORY}/{wildcards.genome_name}"
+    output:
+        "outputs/prokka_outputs/{genome_name}/prokka/{genome_name}.tsv"
+    log:
+        out="logs/{genome_name}/prokka.out",
+        err="logs/{genome_name}/prokka.err"
+    params:
+        pesi_reference=config["prokka"]["pesi_reference"]
+    conda:
+        "envs/prokka.yml"
+    threads: 16
+    shell:
+        """
+        prokka --proteins {params.pesi_reference} \
+            --outdir outputs/prokka_outputs/{wildcards.genome_name}/prokka \
+            --prefix {wildcards.genome_name} \
+            --force \
+            --cpus {threads} \
+            {input} 1> {log.out} 2> {log.err}
+        """
+
+rule ppanggolin:
+    input:
+        ppanggolin_input="data/ppanggolin_inputs/ppanggolin_{version}derepped.txt"
+    output:
+        "outputs/ppanggolin_outputs/{version}derepped/pangenome.h5"
+    conda:
+        "envs/ppanggolin.yml"
+    params:
+        output_dir="outputs/ppanggolin_outputs/{version}derepped"
+    log:
+        out="logs/ppanggolin/{version}derepped/log.out",
+        err="logs/ppanggolin/{version}derepped/log.err",
+    threads: 32
+    shell:
+        """
+        ppanggolin all \
+            --anno {input.ppanggolin_input} \
+            -o {params.output_dir} \
+            -c {threads} 
+        """
+
+rule ppanggolin_partition_alignments:
+    input:
+        ppanggolin_pangenome="outputs/ppanggolin_outputs/{version}derepped/pangenome.h5"
+    output:
+       "outputs/ppanggolin_outputs/{version}derepped/{partition}_genome_alignment.aln",
+    conda:
+        "envs/ppanggolin.yml"
+    params:
+        output_dir="outputs/ppanggolin_outputs/{version}derepped"
+    log:
+        out="logs/ppanggolin/{version}derepped/{partition}_log.out",
+        err="logs/ppanggolin/{version}derepped/{partition}_log.err",
+    wildcard_constraints:
+        version=".*"
+    resources:
+        time="2h"
+    threads: 32
+    shell:
+        """
+        ppanggolin msa \
+            -p {input.ppanggolin_pangenome} \
+            --partition {wildcards.partition} \
+            -o {params.output_dir} \
+            -c {threads} \
+            -f \
+            --phylo
+        """
+
+rule panaroo:
+    input:
+        panaroo_input="data/panaroo_inputs/panaroo_{version}derepped.txt"
+    output:
+        "panaroo_outputs/{version}derepped_{core_threshold}/core_gene_alignment.aln"
+    conda:
+        "envs/panaroo.yml"
+    params:
+        output_dir="panaroo_outputs/{version}derepped_{core_threshold}",
+        clean_mode=config["panaroo"]["clean_mode"]
+    threads: 32
+    wildcard_constraints:
+        version=".*"
+    log:
+        out="logs/panaroo/{version}derepped_{core_threshold}/log.out",
+        err="logs/panaroo/{version}derepped_{core_threshold}/log.err",
+    resources:
+        time="6h"
+    shell:
+        """
+        panaroo \
+            -i {input.panaroo_input} \
+            -o {params.output_dir} \
+            -t {threads} \
+            --clean-mode {params.clean_mode} \
+            --alignment core \
+            --core_threshold {wildcards.core_threshold} \
+            1> {log.out} 2> {log.err}
+        """
+
+# rule drep_compare:
+#     output:
+#         directory("dRep_compare")
+#     log:
+#         out="logs/drep_compare.out",
+#         err="logs/drep_compare.err"
+#     params:
+#         genome_directory=config["directories"]["genome_input_directory"]
+#     conda:
+#         "envs/drep.yml"
+#     threads: 16
+#     shell:
+#         """
+#         dRep compare {output} \
+#             -g {params.genome_directory}/*.fasta \
+#         """
+
+# rule drep_dereplicate:
+#     input:
+#         directory("dRep_compare")
+#     output:
+#         directory("dRep_dereplicate")
+#     log:
+#         out="logs/drep_dereplicate.out",
+#         err="logs/drep_dereplicate.err"
+#     params:
+#         genome_directory=config["directories"]["genome_input_directory"]
+#     conda:
+#         "envs/drep.yml"
+#     threads: 16
+#     shell:
+#         """
+#         dRep dereplicate {output} \
+#             -g {params.genome_directory}/*.fasta \
+#         """
+
+# Rule modules
+include: "rules/trees.smk"
